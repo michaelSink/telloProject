@@ -6,9 +6,7 @@ from datetime import datetime
 
 class Tello:
 
-    CONTROL_IP = '192.168.1.10'
-    CONTROL_PORT = 8889
-    CONTROL_ADDRESS = (CONTROL_IP, CONTROL_PORT)
+    CONTROL_ADDRESS = ('192.168.10.1', 8889)
 
     def __init__(self):
 
@@ -16,10 +14,29 @@ class Tello:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM);
         self.socket.bind(('', 9000))
 
-        threading.Thread(taget=self.udp_control_response).start();
+        threading.Thread(target=self.udp_control_response).start();
+
+        # Start video stream
+        self.start_stream()
 
         # Set up thread for video capture frame read
         self.capture = TelloVideoStream()
+
+    def start_stream(self):
+        
+        try:
+            msg = "command"
+
+            msg = msg.encode(encoding="utf-8") 
+            self.socket.sendto(msg, self.CONTROL_ADDRESS)
+
+            msg = "streamon"
+
+            msg = msg.encode(encoding="utf-8") 
+            self.socket.sendto(msg, self.CONTROL_ADDRESS)
+            print("\nIn SDK mode, and stream is on\n")
+        except Exception as e:
+            self.stop_processes()
 
     """
     Purpose: Receive responses from tello drone commands
@@ -32,12 +49,10 @@ class Tello:
         while True:
             try:
                 data, _ = self.socket.recvfrom(1518)
-                print("[{}] From Tello: {}".format(str(datetime.utcnow()), data.decode(encoding="utf-8")))
+                print("[{}] From Tello: {}\n".format(str(datetime.utcnow()), data.decode(encoding="utf-8")))
             except Exception as e:
                 print("[{}] Error from UDP Control Resposne: {}".format(str(datetime.utcnow()), e))
                 self.stop_processes()
-            finally:
-                break
 
     """
     Purpose: Sending commands to tello through CLI.
@@ -52,15 +67,15 @@ class Tello:
                 msg = input("Command: ");
                 if not msg:
                     continue;
-                else:
-                    if msg == "q":
-                        break;
-                    self.socket.sendto(msg.encode(encoding="utf-8"), self.CONTROL_ADDRESS)
+                
+                if msg == 'q':
+                    self.stop_processes()
+
+                msg = msg.encode(encoding="utf-8") 
+                self.socket.sendto(msg, self.CONTROL_ADDRESS)
             except Exception as e:
                 print("[{}] Error sending data to Tello: {}".format(str(datetime.utcnow()), e))
                 self.stop_processes()
-            finally:
-                break
 
     """
     Purpose: Shut down all processes in Tello and TelloVideoFrame
@@ -79,6 +94,7 @@ class Tello:
 
         except Exception as e:
             print("[{}] Error trying to shut down: {}".format(str(datetime.utcnow()), e))
+        finally:    
             sys.exit(1)
 
 class TelloVideoStream:
@@ -88,7 +104,7 @@ class TelloVideoStream:
 
     def __init__(self):
 
-        self.udp_address = 'udp://@' + self.VIDEO_IP + ":" + self.VIDEO_PORT
+        self.udp_address = 'udp://@' + self.VIDEO_IP + ":" + str(self.VIDEO_PORT)
         self.cap = cv2.VideoCapture(self.udp_address)
 
         self.curr_frame = None
@@ -99,7 +115,7 @@ class TelloVideoStream:
         if not self.cap.isOpened():
             self.cap.open(self.udp_address)
 
-        threading.Thread(target=self.udp_video_capture()).start()
+        threading.Thread(target=self.udp_video_capture).start()
 
     """
     Purpose: While the conditions to process are still
@@ -112,14 +128,12 @@ class TelloVideoStream:
         while self.process:
             try:
                 if not self.ret or not self.cap.isOpened():
-                    self.process = False
+                    self.procecces = False
                 else:
                     self.ret, self.curr_frame = self.cap.read()
             except Exception as e:
                 print("[{}] Error with video processing: {}".format(str(datetime.utcnow()), e))
                 self.stop_processes()
-            finally:
-                break
 
     """
     Purpose: Shut down all procecces relating to TelloVideoStream
@@ -134,12 +148,10 @@ class TelloVideoStream:
             # Stop processing frames
             self.process = False
 
-            # Release the capture device
-            self.cap.realease()
-
             # Destroy created windows
             cv2.destroyAllWindows()
 
         except Exception as e:
             print("[{}] Error shutting down TelloVideoStream processes: {}".format(str(datetime.utcnow()), e))
+        finally:
             sys.exit(1)
