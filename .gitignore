@@ -3,6 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# C Microsoft Word Files
+*.docx
+
+# Tello Reference File
+Tello3.py
+
 # C extensions
 *.so
 
